@@ -6,7 +6,7 @@ environment = "dev"
 
 vpc_id = "vpc-0e95119a40d115040"
 
-subnet_id = "YOUR_SUBNET_ID"
+subnet_id = "subnet-00e44cce556e399e1"
 
 ssh_allowed_cidr = "49.43.250.43/32"
 

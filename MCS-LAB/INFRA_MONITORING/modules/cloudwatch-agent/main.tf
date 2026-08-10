@@ -1,8 +1,19 @@
 locals {
+
+  # ==========================================================
+  # CloudWatch Agent Configuration
+  # ==========================================================
+
   cloudwatch_agent_config = jsonencode({
+
     agent = {
       metrics_collection_interval = 60
-      run_as_user                  = "root"
+      run_as_user                 = "root"
+
+      append_dimensions = {
+        InstanceId   = "$${aws:InstanceId}"
+        InstanceType = "$${aws:InstanceType}"
+      }
     }
 
     metrics = {
@@ -21,7 +32,7 @@ locals {
           ]
 
           metrics_collection_interval = 60
-          totalcpu                     = true
+          totalcpu                    = true
         }
 
         # =========================
@@ -85,7 +96,7 @@ locals {
         }
 
         # =========================
-        # CROND
+        # PROCESS MONITORING
         # =========================
         procstat = [
           {
@@ -98,13 +109,9 @@ locals {
             ]
 
             metrics_collection_interval = 60
-
-            pid_finder = "native"
+            pid_finder                  = "native"
           },
 
-          # =========================
-          # CHRONYD
-          # =========================
           {
             pattern = "chronyd"
 
@@ -115,11 +122,94 @@ locals {
             ]
 
             metrics_collection_interval = 60
-
-            pid_finder = "native"
+            pid_finder                  = "native"
           }
         ]
       }
     }
   })
+
+
+  # ==========================================================
+  # EC2 Bootstrap Script
+  # ==========================================================
+
+  user_data = <<-EOF
+    #!/bin/bash
+
+    set -e
+
+    echo "===== Starting server bootstrap ====="
+
+    # ========================================================
+    # 1. Configure SSM Agent
+    # ========================================================
+
+    echo "===== Configuring SSM Agent ====="
+
+    if systemctl list-unit-files | grep -q "amazon-ssm-agent.service"; then
+        echo "SSM Agent already installed"
+    else
+        echo "SSM Agent not found. Installing..."
+
+        dnf install -y https://s3.amazonaws.com/ec2-downloads-windows/SSMAgent/latest/linux_amd64/amazon-ssm-agent.rpm
+    fi
+
+    systemctl enable amazon-ssm-agent
+    systemctl start amazon-ssm-agent
+
+    echo "SSM Agent status:"
+    systemctl --no-pager status amazon-ssm-agent || true
+
+
+    # ========================================================
+    # 2. Install CloudWatch Agent
+    # ========================================================
+
+    echo "===== Installing CloudWatch Agent ====="
+
+    dnf install -y amazon-cloudwatch-agent
+
+
+    # ========================================================
+    # 3. Create CloudWatch Agent Configuration
+    # ========================================================
+
+    echo "===== Creating CloudWatch Agent configuration ====="
+
+    cat > /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json <<'CONFIG'
+    ${local.cloudwatch_agent_config}
+    CONFIG
+
+# ========================================================
+# 4. Start CloudWatch Agent
+# ========================================================
+
+echo "===== Starting CloudWatch Agent ====="
+
+/opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl \
+  -a fetch-config \
+  -m ec2 \
+  -c file:/opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json \
+  -s
+
+systemctl enable amazon-cloudwatch-agent
+
+echo "CloudWatch Agent status:"
+systemctl --no-pager status amazon-cloudwatch-agent || true
+
+
+    # ========================================================
+    # 5. Final Status
+    # ========================================================
+
+    echo "===== Bootstrap completed ====="
+
+    echo "SSM Agent:"
+    systemctl is-active amazon-ssm-agent || true
+
+    echo "CloudWatch Agent:"
+    systemctl is-active amazon-cloudwatch-agent || true
+
+  EOF
 }

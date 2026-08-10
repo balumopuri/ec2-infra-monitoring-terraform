@@ -35,6 +35,13 @@ variable "instance_type" {
 
 variable "project_name" {
   description = "Name of the project"
+  default     = "SwiftChange Integration"
   type        = string
 
+}
+
+variable "ami_id" {
+  description = "AMI ID"
+  default     = "ami-084b17e3cb2d02a6c"
+  type        = string
 }

@@ -27,7 +27,7 @@ resource "aws_iam_role" "cloudwatch_role" {
   })
 
   tags = var.common_tags
-} 
+}
 
 resource "aws_iam_role_policy_attachment" "cloudwatch_agent_policy" {
 
@@ -45,3 +45,7 @@ resource "aws_iam_instance_profile" "cloudwatch_profile" {
   tags = var.common_tags
 }
 
+resource "aws_iam_role_policy_attachment" "ssm" {
+  role       = aws_iam_role.cloudwatch_role.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
+}
