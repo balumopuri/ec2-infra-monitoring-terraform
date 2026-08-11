@@ -52,7 +52,23 @@ jobs:
 
 
       # ======================================================
-      # 3. Configure AWS Credentials using GitHub OIDC
+      # 3. Debug GitHub OIDC Claims (inline, no external action)
+      # ======================================================
+      # TEMPORARY
+      # Prints the actual aud/sub claims GitHub issues for this run.
+      # Remove once the trust policy is confirmed working.
+
+      - name: Debug GitHub OIDC
+        env:
+          AUDIENCE: sts.amazonaws.com
+        run: |
+          TOKEN=$(curl -s -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=$AUDIENCE" | jq -r .value)
+          echo "$TOKEN" | cut -d. -f2 | base64 -d 2>/dev/null | jq -r '{aud, sub}'
+
+
+      # ======================================================
+      # 4. Configure AWS Credentials using GitHub OIDC
       # ======================================================
 
       - name: Configure AWS credentials
@@ -63,7 +79,7 @@ jobs:
 
 
       # ======================================================
-      # 4. Verify AWS Identity
+      # 5. Verify AWS Identity
       # ======================================================
 
       - name: Verify AWS identity
@@ -72,7 +88,7 @@ jobs:
 
 
       # ======================================================
-      # 5. Terraform Format
+      # 6. Terraform Format
       # ======================================================
 
       - name: Terraform Format
@@ -81,7 +97,7 @@ jobs:
 
 
       # ======================================================
-      # 6. Terraform Init
+      # 7. Terraform Init
       # ======================================================
 
       - name: Terraform Init
@@ -90,7 +106,7 @@ jobs:
 
 
       # ======================================================
-      # 7. Terraform Validate
+      # 8. Terraform Validate
       # ======================================================
 
       - name: Terraform Validate
@@ -99,7 +115,7 @@ jobs:
 
 
       # ======================================================
-      # 8. Terraform Plan
+      # 9. Terraform Plan
       # ======================================================
 
       - name: Terraform Plan
