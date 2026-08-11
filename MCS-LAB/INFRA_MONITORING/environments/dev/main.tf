@@ -70,7 +70,7 @@ module "github_oidc" {
   environment      = var.environment
 
   github_org    = "balumopuri"
-  github_org_id = "187688938"
+  github_org_id = "187608938"
 
   github_repo    = "ec2-infra-monitoring-terraform"
   github_repo_id = "1326624165"
