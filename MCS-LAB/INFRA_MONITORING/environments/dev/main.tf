@@ -62,3 +62,20 @@ module "cloudwatch_alarms" {
   filesystem_threshold = 80
   swap_threshold       = 50
 }
+
+module "github_oidc" {
+  source = "../../modules/github-oidc"
+
+  application_name = var.application_name
+  environment      = var.environment
+
+  github_org    = "balumopuri"
+  github_org_id = "187688938"
+
+  github_repo    = "ec2-infra-monitoring-terraform"
+  github_repo_id = "1326624165"
+
+  github_branch = "main"
+
+  common_tags = local.common_tags
+}
