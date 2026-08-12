@@ -1,10 +1,15 @@
-name: Terraform CI
+name: Terraform CI/CD
 
 # ==========================================================
 # Trigger
 # ==========================================================
+# Pull requests into main -> plan only (safe preview, no changes applied)
+# Pushes to main           -> plan, then apply (gated by manual approval)
 
 on:
+  pull_request:
+    branches:
+      - main
   push:
     branches:
       - main
@@ -17,107 +22,207 @@ on:
 permissions:
   id-token: write
   contents: read
+  pull-requests: write
 
 
 # ==========================================================
-# Terraform Job
+# Shared settings
 # ==========================================================
+
+env:
+  AWS_REGION: us-east-1
+  TF_WORKING_DIR: MCS-LAB/INFRA_MONITORING/environments/dev
+  AWS_ROLE_ARN: arn:aws:iam::610489687511:role/TerraformBackendAccess
+
 
 jobs:
 
-  terraform:
-    name: Terraform Validation
+  # ==========================================================
+  # Job 1: Plan
+  # Runs on every PR and every push to main. Never changes AWS.
+  # ==========================================================
+
+  plan:
+    name: Terraform Plan
     runs-on: ubuntu-latest
 
     defaults:
       run:
-        working-directory: MCS-LAB/INFRA_MONITORING/environments/dev
+        working-directory: ${{ env.TF_WORKING_DIR }}
+
+    outputs:
+      plan-exitcode: ${{ steps.plan.outputs.exitcode }}
 
     steps:
 
-      # ======================================================
+      # ------------------------------------------------------
       # 1. Checkout Repository
-      # ======================================================
+      # ------------------------------------------------------
 
       - name: Checkout repository
         uses: actions/checkout@v4
 
 
-      # ======================================================
+      # ------------------------------------------------------
       # 2. Setup Terraform
-      # ======================================================
+      # ------------------------------------------------------
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
 
 
-      # ======================================================
-      # 3. Debug GitHub OIDC Claims (inline, no external action)
-      # ======================================================
-      # TEMPORARY
-      # Prints the actual aud/sub claims GitHub issues for this run.
-      # Remove once the trust policy is confirmed working.
-
-      - name: Debug GitHub OIDC
-        env:
-          AUDIENCE: sts.amazonaws.com
-        run: |
-          TOKEN=$(curl -s -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
-            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=$AUDIENCE" | jq -r .value)
-          echo "$TOKEN" | cut -d. -f2 | base64 -d 2>/dev/null | jq -r '{aud, sub}'
-
-
-      # ======================================================
-      # 4. Configure AWS Credentials using GitHub OIDC
-      # ======================================================
+      # ------------------------------------------------------
+      # 3. Configure AWS Credentials using GitHub OIDC
+      # ------------------------------------------------------
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v6
         with:
-          role-to-assume: arn:aws:iam::610489687511:role/TerraformBackendAccess
-          aws-region: us-east-1
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
 
 
-      # ======================================================
-      # 5. Verify AWS Identity
-      # ======================================================
+      # ------------------------------------------------------
+      # 4. Verify AWS Identity
+      # ------------------------------------------------------
 
       - name: Verify AWS identity
-        run: |
-          aws sts get-caller-identity
+        run: aws sts get-caller-identity
 
 
-      # ======================================================
-      # 6. Terraform Format
-      # ======================================================
+      # ------------------------------------------------------
+      # 5. Terraform Format
+      # ------------------------------------------------------
 
       - name: Terraform Format
-        run: |
-          terraform fmt -check -recursive
+        run: terraform fmt -check -recursive
 
 
-      # ======================================================
-      # 7. Terraform Init
-      # ======================================================
+      # ------------------------------------------------------
+      # 6. Terraform Init
+      # ------------------------------------------------------
 
       - name: Terraform Init
-        run: |
-          terraform init
+        run: terraform init
 
 
-      # ======================================================
-      # 8. Terraform Validate
-      # ======================================================
+      # ------------------------------------------------------
+      # 7. Terraform Validate
+      # ------------------------------------------------------
 
       - name: Terraform Validate
-        run: |
-          terraform validate
+        run: terraform validate
 
 
-      # ======================================================
-      # 9. Terraform Plan
-      # ======================================================
+      # ------------------------------------------------------
+      # 8. Terraform Plan
+      # ------------------------------------------------------
+      # Writes the plan to a file so the apply job (if it runs)
+      # applies exactly what was reviewed here, not a fresh plan.
 
       - name: Terraform Plan
+        id: plan
         run: |
-          terraform plan
+          terraform plan -no-color -out=tfplan -detailed-exitcode
+        continue-on-error: true
+
+
+      # ------------------------------------------------------
+      # 9. Fail the job on a real error (exit code 1)
+      # ------------------------------------------------------
+      # -detailed-exitcode returns: 0 = no changes, 1 = error,
+      # 2 = changes present. Only fail on 1.
+
+      - name: Check plan result
+        run: |
+          if [ "${{ steps.plan.outputs.exitcode }}" = "1" ]; then
+            echo "Terraform plan failed."
+            exit 1
+          fi
+
+
+      # ------------------------------------------------------
+      # 10. Upload plan as an artifact
+      # ------------------------------------------------------
+
+      - name: Upload plan artifact
+        if: steps.plan.outputs.exitcode == 2
+        uses: actions/upload-artifact@v4
+        with:
+          name: tfplan
+          path: ${{ env.TF_WORKING_DIR }}/tfplan
+          retention-days: 5
+
+
+  # ==========================================================
+  # Job 2: Apply
+  # Only runs on push to main, and only if plan found changes.
+  # Gated by the "production" GitHub Environment's required
+  # reviewers - see setup note below.
+  # ==========================================================
+
+  apply:
+    name: Terraform Apply
+    needs: plan
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.plan.outputs.plan-exitcode == '2'
+    runs-on: ubuntu-latest
+    environment: production
+
+    defaults:
+      run:
+        working-directory: ${{ env.TF_WORKING_DIR }}
+
+    steps:
+
+      # ------------------------------------------------------
+      # 1. Checkout Repository
+      # ------------------------------------------------------
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+
+      # ------------------------------------------------------
+      # 2. Setup Terraform
+      # ------------------------------------------------------
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+
+      # ------------------------------------------------------
+      # 3. Configure AWS Credentials using GitHub OIDC
+      # ------------------------------------------------------
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+
+      # ------------------------------------------------------
+      # 4. Terraform Init
+      # ------------------------------------------------------
+
+      - name: Terraform Init
+        run: terraform init
+
+
+      # ------------------------------------------------------
+      # 5. Download the exact plan reviewed in the plan job
+      # ------------------------------------------------------
+
+      - name: Download plan artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: tfplan
+          path: ${{ env.TF_WORKING_DIR }}
+
+
+      # ------------------------------------------------------
+      # 6. Terraform Apply
+      # ------------------------------------------------------
+
+      - name: Terraform Apply
+        run: terraform apply -auto-approve tfplan
