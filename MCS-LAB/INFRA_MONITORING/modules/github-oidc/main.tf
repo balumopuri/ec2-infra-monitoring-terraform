@@ -49,7 +49,10 @@ resource "aws_iam_role" "github_actions" {
           StringEquals = {
             "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com"
 
-            "token.actions.githubusercontent.com:sub" = "repo:${var.github_org}@${var.github_org_id}/${var.github_repo}@${var.github_repo_id}:ref:refs/heads/${var.github_branch}"
+            "token.actions.githubusercontent.com:sub" = [
+              "repo:${var.github_org}@${var.github_org_id}/${var.github_repo}@${var.github_repo_id}:ref:refs/heads/${var.github_branch}",
+              "repo:${var.github_org}@${var.github_org_id}/${var.github_repo}@${var.github_repo_id}:environment:${var.github_environment}"
+            ]
           }
         }
       }
@@ -92,7 +95,7 @@ resource "aws_iam_role_policy" "terraform_backend" {
           "s3:DeleteObject"
         ]
 
-        Resource = "arn:aws:s3:::swiftchange-tfstate-610489687511/dev/terraform.tfstate"
+        Resource = "arn:aws:s3:::${var.state_bucket_name}/${var.state_key}"
       },
 
       {
@@ -102,7 +105,7 @@ resource "aws_iam_role_policy" "terraform_backend" {
           "s3:ListBucket"
         ]
 
-        Resource = "arn:aws:s3:::swiftchange-tfstate-610489687511"
+        Resource = "arn:aws:s3:::${var.state_bucket_name}"
       },
 
       # ----------------------------------------------------
@@ -118,7 +121,7 @@ resource "aws_iam_role_policy" "terraform_backend" {
           "dynamodb:DeleteItem"
         ]
 
-        Resource = "arn:aws:dynamodb:us-east-1:${data.aws_caller_identity.current.account_id}:table/swiftchange-terraform-lock"
+        Resource = "arn:aws:dynamodb:${var.aws_region}:${data.aws_caller_identity.current.account_id}:table/${var.dynamodb_table_name}"
       }
     ]
   })

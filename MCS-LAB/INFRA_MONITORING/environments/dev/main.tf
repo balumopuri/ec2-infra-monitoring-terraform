@@ -75,7 +75,13 @@ module "github_oidc" {
   github_repo    = "ec2-infra-monitoring-terraform"
   github_repo_id = "1326624165"
 
-  github_branch = "main"
+  github_branch      = "main"
+  github_environment = "production"
+
+  aws_region          = var.aws_region
+  state_bucket_name   = "swiftchange-tfstate-610489687511"
+  state_key           = "dev/terraform.tfstate"
+  dynamodb_table_name = "swiftchange-terraform-lock"
 
   common_tags = local.common_tags
 }

@@ -62,6 +62,17 @@ variable "github_branch" {
 
 
 # ==========================================================
+# GitHub Environment
+# ==========================================================
+
+variable "github_environment" {
+  description = "GitHub Environment name allowed to assume the IAM role (used by jobs with an `environment:` key, e.g. the apply job)"
+  type        = string
+  default     = "production"
+}
+
+
+# ==========================================================
 # Common Tags
 # ==========================================================
 
@@ -69,4 +80,32 @@ variable "common_tags" {
   description = "Common resource tags"
   type        = map(string)
   default     = {}
+}
+
+
+# ==========================================================
+# Terraform Backend
+# ==========================================================
+
+variable "aws_region" {
+  description = "AWS region the Terraform state backend lives in"
+  type        = string
+}
+
+
+variable "state_bucket_name" {
+  description = "S3 bucket name storing Terraform state"
+  type        = string
+}
+
+
+variable "state_key" {
+  description = "S3 object key (path) for this environment's Terraform state file, e.g. dev/terraform.tfstate"
+  type        = string
+}
+
+
+variable "dynamodb_table_name" {
+  description = "DynamoDB table name used for Terraform state locking"
+  type        = string
 }
