@@ -24,7 +24,12 @@ variable "subnet_id" {
 }
 
 variable "ssh_allowed_cidr" {
-  description = "49.43.250.43/32"
+  description = "Allowed source CIDR for direct SSH access (e.g. your office/home IP). Update this if your IP changes."
+  type        = string
+}
+
+variable "ec2_instance_connect_cidr" {
+  description = "AWS EC2 Instance Connect service CIDR for this region (browser-based console SSH)"
   type        = string
 }
 

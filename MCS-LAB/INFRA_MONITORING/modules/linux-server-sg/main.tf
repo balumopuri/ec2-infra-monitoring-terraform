@@ -28,6 +28,22 @@ resource "aws_vpc_security_group_ingress_rule" "ssh" {
 
 }
 
+resource "aws_vpc_security_group_ingress_rule" "ec2_instance_connect" {
+
+  security_group_id = aws_security_group.linux_server_sg.id
+
+  description = "Allow SSH from EC2 Instance Connect (browser-based console SSH)"
+
+  from_port = 22
+
+  to_port = 22
+
+  ip_protocol = "tcp"
+
+  cidr_ipv4 = var.ec2_instance_connect_cidr
+
+}
+
 resource "aws_vpc_security_group_egress_rule" "all_outbound" {
 
   security_group_id = aws_security_group.linux_server_sg.id

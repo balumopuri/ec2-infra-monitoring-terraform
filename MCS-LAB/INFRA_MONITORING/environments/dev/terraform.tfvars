@@ -10,4 +10,6 @@ subnet_id = "subnet-00e44cce556e399e1"
 
 ssh_allowed_cidr = "49.43.250.43/32"
 
+ec2_instance_connect_cidr = "18.206.107.24/29"
+
 instance_type = "t3.micro"

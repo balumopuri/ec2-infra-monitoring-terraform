@@ -17,6 +17,8 @@ module "linux_server_sg" {
   vpc_id           = var.vpc_id
   ssh_allowed_cidr = var.ssh_allowed_cidr
 
+  ec2_instance_connect_cidr = var.ec2_instance_connect_cidr
+
   common_tags = local.common_tags
 }
 
