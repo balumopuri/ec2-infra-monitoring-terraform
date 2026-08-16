@@ -62,7 +62,7 @@ module "cloudwatch_alarms" {
   cpu_threshold        = 80
   memory_threshold     = 80
   filesystem_threshold = 80
-  swap_threshold       = 50
+  swap_threshold       = 60
 }
 
 module "github_oidc" {
